@@ -1,34 +1,30 @@
-'use server'
+import { PrismaClient } from '@prisma/client';
+import { handleError } from '@/lib/utils';
+import { CreateUserParams, UpdateUserParams } from '@/types';
 
-import { revalidatePath } from 'next/cache'
-import { PrismaClient } from '@prisma/client'
-import { handleError } from '@/lib/utils'
-
-import { CreateUserParams, UpdateUserParams } from '@/types'
-
-const prisma = new PrismaClient()
+const prisma = new PrismaClient();
 
 export async function createUser(user: CreateUserParams) {
   try {
     const newUser = await prisma.user.create({
-      data: user
-    })
-    return newUser
+      data: user,
+    });
+    return newUser;
   } catch (error) {
-    handleError(error)
+    handleError(error);
   }
 }
 
 export async function getUserById(userId: string) {
   try {
     const user = await prisma.user.findUnique({
-      where: { id: userId }
-    })
+      where: { id: userId },
+    });
 
-    if (!user) throw new Error('User not found')
-    return user
+    if (!user) throw new Error('User not found');
+    return user;
   } catch (error) {
-    handleError(error)
+    handleError(error);
   }
 }
 
@@ -36,48 +32,44 @@ export async function updateUser(clerkId: string, user: UpdateUserParams) {
   try {
     const updatedUser = await prisma.user.update({
       where: { clerkId },
-      data: user
-    })
+      data: user,
+    });
 
-    if (!updatedUser) throw new Error('User update failed')
-    return updatedUser
+    if (!updatedUser) throw new Error('User update failed');
+    return updatedUser;
   } catch (error) {
-    handleError(error)
+    handleError(error);
   }
 }
 
 export async function deleteUser(clerkId: string) {
   try {
-    // Find user to delete
     const userToDelete = await prisma.user.findUnique({
       where: { clerkId },
-      include: { events: true, orders: true }
-    })
+      include: { events: true, orders: true },
+    });
 
     if (!userToDelete) {
-      throw new Error('User not found')
+      throw new Error('User not found');
     }
 
-    // Unlink relationships
     await prisma.$transaction([
       prisma.event.updateMany({
         where: { organizerId: userToDelete.id },
-        data: { organizerId: null }
+        data: { organizerId: null },
       }),
       prisma.order.updateMany({
         where: { buyerId: userToDelete.id },
-        data: { buyerId: null }
-      })
-    ])
+        data: { buyerId: null },
+      }),
+    ]);
 
-    // Delete user
     const deletedUser = await prisma.user.delete({
-      where: { id: userToDelete.id }
-    })
-    revalidatePath('/')
+      where: { id: userToDelete.id },
+    });
 
-    return deletedUser
+    return deletedUser;
   } catch (error) {
-    handleError(error)
+    handleError(error);
   }
 }
