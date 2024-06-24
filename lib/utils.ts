@@ -1,5 +1,4 @@
 import { type ClassValue, clsx } from 'clsx'
-
 import { twMerge } from 'tailwind-merge'
 import qs from 'query-string'
 
@@ -9,7 +8,12 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export const formatDateTime = (dateString: Date) => {
+export const formatDateTime = (dateString: Date | string) => {
+  const date = new Date(dateString)
+  if (isNaN(date.getTime())) {
+    throw new Error('Invalid date string')
+  }
+
   const dateTimeOptions: Intl.DateTimeFormatOptions = {
     weekday: 'short', // abbreviated weekday name (e.g., 'Mon')
     month: 'short', // abbreviated month name (e.g., 'Oct')
@@ -32,11 +36,9 @@ export const formatDateTime = (dateString: Date) => {
     hour12: true, // use 12-hour clock (true) or 24-hour clock (false)
   }
 
-  const formattedDateTime: string = new Date(dateString).toLocaleString('en-US', dateTimeOptions)
-
-  const formattedDate: string = new Date(dateString).toLocaleString('en-US', dateOptions)
-
-  const formattedTime: string = new Date(dateString).toLocaleString('en-US', timeOptions)
+  const formattedDateTime: string = date.toLocaleString('en-US', dateTimeOptions)
+  const formattedDate: string = date.toLocaleString('en-US', dateOptions)
+  const formattedTime: string = date.toLocaleString('en-US', timeOptions)
 
   return {
     dateTime: formattedDateTime,
@@ -45,10 +47,18 @@ export const formatDateTime = (dateString: Date) => {
   }
 }
 
-export const convertFileToUrl = (file: File) => URL.createObjectURL(file)
+export const convertFileToUrl = (file: File) => {
+  if (!(file instanceof File)) {
+    throw new Error('Invalid file type')
+  }
+  return URL.createObjectURL(file)
+}
 
 export const formatPrice = (price: string) => {
   const amount = parseFloat(price)
+  if (isNaN(amount)) {
+    throw new Error('Invalid price format')
+  }
   const formattedPrice = new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
@@ -89,5 +99,9 @@ export function removeKeysFromQuery({ params, keysToRemove }: RemoveUrlQueryPara
 
 export const handleError = (error: unknown) => {
   console.error(error)
-  throw new Error(typeof error === 'string' ? error : JSON.stringify(error))
+  if (error instanceof Error) {
+    throw error
+  } else {
+    throw new Error(typeof error === 'string' ? error : JSON.stringify(error))
+  }
 }

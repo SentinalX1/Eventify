@@ -1,21 +1,19 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-
-import { connectToDatabase } from '@/lib/database'
-import User from '@/lib/database/models/user.model'
-import Order from '@/lib/database/models/order.model'
-import Event from '@/lib/database/models/event.model'
+import { PrismaClient } from '@prisma/client'
 import { handleError } from '@/lib/utils'
 
 import { CreateUserParams, UpdateUserParams } from '@/types'
 
+const prisma = new PrismaClient()
+
 export async function createUser(user: CreateUserParams) {
   try {
-    await connectToDatabase()
-
-    const newUser = await User.create(user)
-    return JSON.parse(JSON.stringify(newUser))
+    const newUser = await prisma.user.create({
+      data: user
+    })
+    return newUser
   } catch (error) {
     handleError(error)
   }
@@ -23,12 +21,12 @@ export async function createUser(user: CreateUserParams) {
 
 export async function getUserById(userId: string) {
   try {
-    await connectToDatabase()
-
-    const user = await User.findById(userId)
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    })
 
     if (!user) throw new Error('User not found')
-    return JSON.parse(JSON.stringify(user))
+    return user
   } catch (error) {
     handleError(error)
   }
@@ -36,12 +34,13 @@ export async function getUserById(userId: string) {
 
 export async function updateUser(clerkId: string, user: UpdateUserParams) {
   try {
-    await connectToDatabase()
-
-    const updatedUser = await User.findOneAndUpdate({ clerkId }, user, { new: true })
+    const updatedUser = await prisma.user.update({
+      where: { clerkId },
+      data: user
+    })
 
     if (!updatedUser) throw new Error('User update failed')
-    return JSON.parse(JSON.stringify(updatedUser))
+    return updatedUser
   } catch (error) {
     handleError(error)
   }
@@ -49,32 +48,35 @@ export async function updateUser(clerkId: string, user: UpdateUserParams) {
 
 export async function deleteUser(clerkId: string) {
   try {
-    await connectToDatabase()
-
     // Find user to delete
-    const userToDelete = await User.findOne({ clerkId })
+    const userToDelete = await prisma.user.findUnique({
+      where: { clerkId },
+      include: { events: true, orders: true }
+    })
 
     if (!userToDelete) {
       throw new Error('User not found')
     }
 
     // Unlink relationships
-    await Promise.all([
-      // Update the 'events' collection to remove references to the user
-      Event.updateMany(
-        { _id: { $in: userToDelete.events } },
-        { $pull: { organizer: userToDelete._id } }
-      ),
-
-      // Update the 'orders' collection to remove references to the user
-      Order.updateMany({ _id: { $in: userToDelete.orders } }, { $unset: { buyer: 1 } }),
+    await prisma.$transaction([
+      prisma.event.updateMany({
+        where: { organizerId: userToDelete.id },
+        data: { organizerId: null }
+      }),
+      prisma.order.updateMany({
+        where: { buyerId: userToDelete.id },
+        data: { buyerId: null }
+      })
     ])
 
     // Delete user
-    const deletedUser = await User.findByIdAndDelete(userToDelete._id)
+    const deletedUser = await prisma.user.delete({
+      where: { id: userToDelete.id }
+    })
     revalidatePath('/')
 
-    return deletedUser ? JSON.parse(JSON.stringify(deletedUser)) : null
+    return deletedUser
   } catch (error) {
     handleError(error)
   }
