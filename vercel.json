@@ -10,16 +10,6 @@
         "source": "/api/(.*)",
         "destination": "/api/$1"
       }
-    ],
-    "middleware": [
-      {
-        "source": "/((?!.*\\..*|_next).*)",
-        "destination": "/"
-      },
-      {
-        "source": "/(api|trpc)(.*)",
-        "destination": "/api"
-      }
     ]
   }
   
